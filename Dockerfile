@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.9-slim
 
 # Install necessary system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -15,7 +15,8 @@ RUN pip3 install --no-cache-dir \
     spidev \
     pyserial \
     aiomqtt \
-    aiofiles
+    aiofiles \
+    rpi-lgpio
 
 # Copy application files into the container
 COPY adc_app.py /
@@ -29,7 +30,6 @@ COPY webserver.py /
 COPY adc_manager.py /
 COPY tasks.py /
 COPY pwm_manager.py /
-COPY can_communication.py /
 
 # Define the command to run the application
 CMD ["python3", "/adc_app.py"]
