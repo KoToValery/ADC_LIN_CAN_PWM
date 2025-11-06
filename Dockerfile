@@ -15,6 +15,8 @@ RUN pip3 install --no-cache-dir \
     spidev \
     pyserial \
     aiomqtt \
+    libgpiod3 \
+    python3-libgpiod \
     aiofiles
 
 # Copy application files into the container
