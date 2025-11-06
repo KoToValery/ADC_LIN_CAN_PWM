@@ -18,6 +18,11 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Quart(__name__)
 clients = set()
+mqtt_client = None
+
+def set_mqtt_client(client):
+    global mqtt_client
+    mqtt_client = client
 
 @app.route('/data')
 async def data_route():
@@ -34,6 +39,33 @@ async def index():
     except Exception as e:
         logger.error(f"Error serving index.html: {e}")
         return jsonify({"error": "Index file not found."}), 404
+
+@app.route('/fan/enable', methods=['POST'])
+async def fan_enable():
+    try:
+        data = await app.request.get_json()
+        enabled = bool(data.get('enabled', False))
+        latest_data["pwm_fan"]["enabled"] = enabled
+        if mqtt_client:
+            mqtt_client.publish("cis3/fan/enable/set", "ON" if enabled else "OFF")
+        return jsonify({"ok": True, "enabled": enabled})
+    except Exception as e:
+        logger.error(f"/fan/enable error: {e}")
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/fan/duty', methods=['POST'])
+async def fan_duty():
+    try:
+        data = await app.request.get_json()
+        duty = int(data.get('duty', 10))
+        duty = max(10, min(100, duty))
+        latest_data["pwm_fan"]["duty_cycle"] = duty
+        if mqtt_client:
+            mqtt_client.publish("cis3/fan/duty/set", str(duty))
+        return jsonify({"ok": True, "duty": duty})
+    except Exception as e:
+        logger.error(f"/fan/duty error: {e}")
+        return jsonify({"error": str(e)}), 400
 
 @app.websocket('/ws')
 async def ws_route():

@@ -15,5 +15,11 @@ latest_data = {
             "Humidity": 0.0
         }
     },
-    "can_status": "OFF"  # New field for CAN communication status
+    "can_status": "OFF",  # New field for CAN communication status
+    "pwm_fan": {
+        "enabled": False,
+        "duty_cycle": 10,
+        "rpm": 0,
+        "frequency": 26000
+    }
 }

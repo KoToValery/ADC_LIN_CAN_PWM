@@ -60,6 +60,14 @@ MQTT_DISCOVERY_PREFIX = 'homeassistant'
 MQTT_CLIENT_ID = "cis3_adc_mqtt_client"
 
 # ============================
+# PWM Fan Configuration
+# ============================
+PWM_PIN = 12           # BCM GPIO 12
+TACH_PIN = 13          # BCM GPIO 13
+PWM_FREQUENCY = 26000  # 26 kHz
+PULSES_PER_REV = 2     # Pulses per revolution from tachometer
+
+# ============================
 # Supervisor & Ingress
 # ============================
 SUPERVISOR_WS_URL = os.getenv("SUPERVISOR_WS_URL", "ws://supervisor/core/websocket")

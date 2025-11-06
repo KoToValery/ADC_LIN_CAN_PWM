@@ -76,6 +76,73 @@
             background: linear-gradient(90deg, #4fd1c5 0%, #63b3ed 100%);
             transition: width 0.3s ease;
         }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .switch .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .switch .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        .switch input:checked + .slider {
+            background-color: #4fd1c5;
+        }
+        .switch input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 10px;
+            border-radius: 5px;
+            background: #2d3748;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4fd1c5;
+            cursor: pointer;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4fd1c5;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -161,6 +228,28 @@
                 </div>
             </div>
         </div>
+
+        <div class="section">
+            <h2>PWM Fan Control</h2>
+            <div class="slaves-grid">
+                <div class="card">
+                    <h3>Fan Enable</h3>
+                    <label class="switch">
+                        <input type="checkbox" id="fan_enable">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="card">
+                    <h3>Duty Cycle</h3>
+                    <input type="range" id="fan_duty" min="10" max="100" value="10">
+                    <div class="value-display" id="fan_duty_value">10%</div>
+                </div>
+                <div class="card">
+                    <h3>Tachometer</h3>
+                    <div class="value-display" id="fan_rpm_value">0 rpm</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -168,6 +257,37 @@
             const baseUrl = window.location.pathname.replace(/\/$/, '');
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const socket = new WebSocket(`${protocol}//${window.location.host}${baseUrl}/ws`);
+        
+            const fanEnable = document.getElementById('fan_enable');
+            const fanDuty = document.getElementById('fan_duty');
+            const fanDutyValue = document.getElementById('fan_duty_value');
+            const fanRpmValue = document.getElementById('fan_rpm_value');
+
+            fanEnable.addEventListener('change', async function() {
+                try {
+                    const res = await fetch(`${baseUrl}/fan/enable`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enabled: fanEnable.checked })
+                    });
+                    await res.json();
+                } catch (e) { console.error(e); }
+            });
+
+            fanDuty.addEventListener('input', function() {
+                fanDutyValue.textContent = `${fanDuty.value}%`;
+            });
+
+            fanDuty.addEventListener('change', async function() {
+                try {
+                    const res = await fetch(`${baseUrl}/fan/duty`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ duty: parseInt(fanDuty.value) })
+                    });
+                    await res.json();
+                } catch (e) { console.error(e); }
+            });
         
             socket.onmessage = function(event) {
                 const data = JSON.parse(event.data);
@@ -205,6 +325,14 @@
                 // Update CAN status
                 const canStatusValue = document.getElementById('can_status_value');
                 canStatusValue.textContent = data.can_status;
+
+                // Update PWM fan UI
+                if (data.pwm_fan) {
+                    fanEnable.checked = !!data.pwm_fan.enabled;
+                    fanDuty.value = data.pwm_fan.duty_cycle ?? 10;
+                    fanDutyValue.textContent = `${fanDuty.value}%`;
+                    fanRpmValue.textContent = `${data.pwm_fan.rpm ?? 0} rpm`;
+                }
             };
         });
     </script>

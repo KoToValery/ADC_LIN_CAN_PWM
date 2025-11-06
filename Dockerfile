@@ -1,4 +1,4 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 # Install necessary system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -28,6 +28,8 @@ COPY mqtt_manager.py /
 COPY webserver.py /
 COPY adc_manager.py /
 COPY tasks.py /
+COPY pwm_manager.py /
+COPY can_communication.py /
 
 # Define the command to run the application
 CMD ["python3", "/adc_app.py"]

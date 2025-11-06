@@ -30,7 +30,9 @@ schema:
 environment:
   MQTT_USER: "${mqtt_user}"
   MQTT_PASS: "${mqtt_pass}"
+  RPI_LGPIO_CHIP: "4"
 devices:
   - /dev/spidev1.1:/dev/spidev1.1
   - /dev/spidev1.0:/dev/spidev1.0
   - /dev/ttyAMA2:/dev/ttyAMA2
+  - /dev/gpiochip4:/dev/gpiochip4
