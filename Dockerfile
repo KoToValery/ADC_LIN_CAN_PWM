@@ -18,7 +18,8 @@ RUN pip3 install --no-cache-dir \
     aiomqtt \
     lgpio \
     gpiozero \
-    aiofiles
+    aiofiles \
+    python-can
 
 # Копиране на приложението
 COPY adc_app.py /
