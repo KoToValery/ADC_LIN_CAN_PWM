@@ -1,7 +1,7 @@
-name: "CAN_test"
-version: "1.0.1.4"
+name: "PWM_test"
+version: "1.0.1"
 slug: "cis3"
-description: "Add-on for monitoring ADC and LIN&CAN communication "
+description: "Add-on for monitoring ADC,LIN&CAN communication and PWM controll "
 arch:
   - armhf
   - armv7
@@ -11,7 +11,7 @@ arch:
 startup: "services"
 ingress: true
 panel_icon: mdi:chip
-panel_title: " ADC-LIN-CAN"
+panel_title: " ADC-LIN-CAN-PWM"
 ingress_port: 8099
 ports:
   8765/tcp: 8765  # WebSocket 
