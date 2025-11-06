@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     build-essential \
     libgpiod-dev \
+    libgpiod3 \
     python3-libgpiod \
     && rm -rf /var/lib/apt/lists/*
 
@@ -15,6 +16,8 @@ RUN pip3 install --no-cache-dir \
     spidev \
     pyserial \
     aiomqtt \
+    lgpio \
+    gpiozero \
     aiofiles
 
 # Копиране на приложението
