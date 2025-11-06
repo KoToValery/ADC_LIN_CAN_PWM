@@ -1,25 +1,23 @@
 FROM python:3.11-slim
 
-# Install necessary system dependencies
+# Системни зависимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-pip \
     python3-dev \
     build-essential \
-    && apt-get clean \
+    libgpiod-dev \
+    python3-libgpiod \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Python зависимости (махаме libgpiod3 и python3-libgpiod от pip)
 RUN pip3 install --no-cache-dir \
     quart \
     hypercorn \
     spidev \
     pyserial \
     aiomqtt \
-    libgpiod3 \
-    python3-libgpiod \
     aiofiles
 
-# Copy application files into the container
+# Копиране на приложението
 COPY adc_app.py /
 COPY index.html /
 COPY config.py /
@@ -33,5 +31,5 @@ COPY tasks.py /
 COPY pwm_manager.py /
 COPY can_communication.py /
 
-# Define the command to run the application
+# Стартиране
 CMD ["python3", "/adc_app.py"]
