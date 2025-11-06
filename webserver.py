@@ -4,7 +4,7 @@ import os
 import json
 import logging
 import asyncio
-from quart import Quart, jsonify, send_from_directory, websocket
+from quart import Quart, jsonify, send_from_directory, websocket, request
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 
@@ -43,7 +43,7 @@ async def index():
 @app.route('/fan/enable', methods=['POST'])
 async def fan_enable():
     try:
-        data = await app.request.get_json()
+        data = await request.get_json()
         enabled = bool(data.get('enabled', False))
         latest_data["pwm_fan"]["enabled"] = enabled
         if mqtt_client:
@@ -56,7 +56,7 @@ async def fan_enable():
 @app.route('/fan/duty', methods=['POST'])
 async def fan_duty():
     try:
-        data = await app.request.get_json()
+        data = await request.get_json()
         duty = int(data.get('duty', 10))
         duty = max(10, min(100, duty))
         latest_data["pwm_fan"]["duty_cycle"] = duty
