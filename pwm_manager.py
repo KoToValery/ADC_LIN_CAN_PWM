@@ -2,16 +2,14 @@ import threading
 import time
 import lgpio
 import os
-from pathlib import Path
 from logger_config import logger
 
 try:
-    from gpiozero import PWMOutputDevice
-    from gpiozero.pins.lgpio import LGPIOFactory
-    GPIOZERO_AVAILABLE = True
+    import pigpio
+    PIGPIO_AVAILABLE = True
 except ImportError:
-    GPIOZERO_AVAILABLE = False
-    logger.warning("gpiozero not available, PWM functionality will be limited")
+    PIGPIO_AVAILABLE = False
+    logger.warning("pigpio not available, hardware PWM functionality will be disabled")
 
 class PWMManager:
     def __init__(self, pwm_pin=12, tachometer_pin=13, frequency=26000, pulses_per_rev=2):
@@ -29,8 +27,8 @@ class PWMManager:
         self.last_rpm_calc = time.time()
         self.alert_handle = None
         
-        # gpiozero PWM device
-        self.pwm_device = None
+        # pigpio connection
+        self.pi = None
 
         self._setup_gpio()
 
@@ -39,7 +37,7 @@ class PWMManager:
             chip_num = int(os.getenv('RPI_LGPIO_CHIP', '4'))
             self.chip = lgpio.gpiochip_open(chip_num)
 
-            # Setup hardware PWM using gpiozero
+            # Setup hardware PWM with pigpio
             self._setup_hw_pwm()
 
             # Tachometer input
@@ -51,30 +49,44 @@ class PWMManager:
             logger.error(f"Error setting up GPIO: {e}")
 
     def _setup_hw_pwm(self):
-        """Setup hardware PWM using gpiozero with lgpio backend"""
-        logger.info("Starting hardware PWM setup with gpiozero...")
+        """Setup REAL hardware PWM using pigpio daemon"""
+        logger.info("Starting hardware PWM setup with pigpio...")
         try:
-            if not GPIOZERO_AVAILABLE:
-                logger.error("gpiozero is not installed. Cannot setup PWM.")
+            if not PIGPIO_AVAILABLE:
+                logger.error("pigpio is not installed. Cannot setup hardware PWM.")
                 return
             
-            # Create lgpio pin factory
-            pin_factory = LGPIOFactory(chip=int(os.getenv('RPI_LGPIO_CHIP', '4')))
+            # Connect to pigpio daemon (start if needed)
+            self.pi = pigpio.pi()
             
-            # Create PWM device with hardware PWM support
-            # GPIO 12 on Pi 5 supports hardware PWM
-            self.pwm_device = PWMOutputDevice(
-                self.pwm_pin,
-                initial_value=0,
-                frequency=self.frequency,
-                pin_factory=pin_factory
-            )
+            if not self.pi.connected:
+                logger.error("Failed to connect to pigpio daemon. Make sure pigpiod is running.")
+                # Try to start pigpiod
+                import subprocess
+                try:
+                    subprocess.run(['pigpiod'], check=False)
+                    time.sleep(1)
+                    self.pi = pigpio.pi()
+                except Exception as e:
+                    logger.error(f"Failed to start pigpiod: {e}")
             
-            self.pwm_hw_available = True
-            logger.info(f"✓ Hardware PWM configured using gpiozero on GPIO {self.pwm_pin} at {self.frequency} Hz")
+            if self.pi.connected:
+                # Set GPIO mode to output
+                self.pi.set_mode(self.pwm_pin, pigpio.OUTPUT)
+                
+                # Start with 0% duty cycle
+                # pigpio uses 0-1000000 for duty cycle (where 1000000 = 100%)
+                self.pi.hardware_PWM(self.pwm_pin, self.frequency, 0)
+                
+                self.pwm_hw_available = True
+                logger.info(f"✓ REAL Hardware PWM configured on GPIO {self.pwm_pin} at {self.frequency} Hz using pigpio")
+                logger.info("This is TRUE hardware PWM on Raspberry Pi 5!")
+            else:
+                logger.error("pigpio daemon not connected after retry")
+                self.pwm_hw_available = False
             
         except Exception as e:
-            logger.error(f"Error setting up hardware PWM with gpiozero: {e}", exc_info=True)
+            logger.error(f"Error setting up hardware PWM with pigpio: {e}", exc_info=True)
             self.pwm_hw_available = False
 
     def _tachometer_callback(self, chip, gpio, level, tick):
@@ -93,15 +105,17 @@ class PWMManager:
             return False
 
     def _apply_hw_pwm(self):
-        """Apply HW PWM with current duty cycle and frequency"""
+        """Apply HW PWM with current duty cycle"""
         try:
-            if not self.pwm_hw_available or self.pwm_device is None:
+            if not self.pwm_hw_available or self.pi is None:
                 logger.error("Hardware PWM is not available. Cannot set duty cycle.")
                 return
             
-            # gpiozero uses 0.0 to 1.0 for duty cycle
-            duty_value = self.duty_cycle / 100.0
-            self.pwm_device.value = duty_value
+            # pigpio hardware_PWM uses 0-1000000 for duty cycle (where 1000000 = 100%)
+            duty_cycle_value = int(self.duty_cycle * 10000)  # 10% = 100000, 100% = 1000000
+            
+            # hardware_PWM(gpio, frequency, duty_cycle_0_to_1000000)
+            self.pi.hardware_PWM(self.pwm_pin, self.frequency, duty_cycle_value)
             
         except Exception as e:
             logger.error(f"Failed to set HW PWM duty cycle: {e}")
@@ -109,15 +123,15 @@ class PWMManager:
     def enable_pwm(self):
         if not self.is_enabled:
             try:
-                if not self.pwm_hw_available or self.pwm_device is None:
+                if not self.pwm_hw_available or self.pi is None:
                     logger.error("Hardware PWM is not available. Cannot enable PWM.")
                     return False
                 
-                # Apply duty cycle (gpiozero PWM is always "on", just set value)
+                # Set duty cycle using hardware PWM
                 self._apply_hw_pwm()
                 
                 self.is_enabled = True
-                logger.info(f"Hardware PWM enabled at {self.duty_cycle}% duty cycle")
+                logger.info(f"Hardware PWM enabled at {self.duty_cycle}% duty cycle, {self.frequency} Hz (pigpio)")
                 return True
             except Exception as e:
                 logger.error(f"Error enabling PWM: {e}")
@@ -127,8 +141,9 @@ class PWMManager:
     def disable_pwm(self):
         if self.is_enabled:
             try:
-                if self.pwm_device is not None:
-                    self.pwm_device.value = 0
+                if self.pi is not None:
+                    # Set duty cycle to 0 (stop PWM)
+                    self.pi.hardware_PWM(self.pwm_pin, self.frequency, 0)
                 
                 self.is_enabled = False
                 logger.info("Hardware PWM disabled")
@@ -163,9 +178,10 @@ class PWMManager:
 
     def close(self):
         try:
-            # Disable and close PWM device
-            if self.pwm_device is not None:
-                self.pwm_device.close()
+            # Stop hardware PWM
+            if self.pi is not None and self.pi.connected:
+                self.pi.hardware_PWM(self.pwm_pin, 0, 0)  # Stop PWM
+                self.pi.stop()  # Disconnect from pigpio daemon
             
             # Close tachometer callback
             if self.alert_handle is not None:

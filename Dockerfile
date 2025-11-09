@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgpiod-dev \
     libgpiod3 \
     python3-libgpiod \
+    pigpio \
     && rm -rf /var/lib/apt/lists/*
 
 # Python зависимости (махаме libgpiod3 и python3-libgpiod от pip)
@@ -19,7 +20,8 @@ RUN pip3 install --no-cache-dir \
     lgpio \
     gpiozero \
     aiofiles \
-    python-can
+    python-can \
+    pigpio
 
 # Копиране на приложението
 COPY adc_app.py /
