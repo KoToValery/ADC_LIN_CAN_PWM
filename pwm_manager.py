@@ -1,5 +1,3 @@
-# pwm_manager.py
-
 import threading
 import time
 import lgpio
@@ -13,103 +11,95 @@ class PWMManager:
         self.frequency = frequency
         self.pulses_per_rev = pulses_per_rev
         self.chip = None
-        self.pwm = None
-        self.duty_cycle = 10
         self.is_enabled = False
+        self.duty_cycle = 10  # % (original range 10–100)
         self.rpm = 0
         self.tachometer_pulses = 0
         self.tachometer_lock = threading.Lock()
         self.last_rpm_calc = time.time()
         self.alert_handle = None
-        
+
         self._setup_gpio()
-    
+
     def _setup_gpio(self):
         try:
-            # Get GPIO chip (default 4 for Raspberry Pi 5)
             chip_num = int(os.getenv('RPI_LGPIO_CHIP', '4'))
             self.chip = lgpio.gpiochip_open(chip_num)
-            
-            # Setup PWM pin (GPIO 12) as output
+
+            # HW PWM pin setup
             lgpio.gpio_claim_output(self.chip, self.pwm_pin)
-            
-            # Setup tachometer input pin (GPIO 13) with pull-down
+
+            # Tachometer input
             lgpio.gpio_claim_input(self.chip, self.tachometer_pin, lgpio.SET_PULL_DOWN)
-            
-            # Setup alert callback for tachometer (rising edge detection)
             self.alert_handle = lgpio.callback(self.chip, self.tachometer_pin, lgpio.RISING_EDGE, self._tachometer_callback)
-            
-            logger.info(f"GPIO pins configured: PWM on GPIO {self.pwm_pin}, Tachometer on GPIO {self.tachometer_pin}")
+
+            logger.info(f"GPIO pins configured: HW PWM on GPIO {self.pwm_pin}, Tachometer on GPIO {self.tachometer_pin}")
         except Exception as e:
             logger.error(f"Error setting up GPIO: {e}")
-    
+
     def _tachometer_callback(self, chip, gpio, level, tick):
-        """Callback for tachometer pulses (lgpio format)"""
         with self.tachometer_lock:
             self.tachometer_pulses += 1
-    
+
     def set_duty_cycle(self, duty_cycle):
-        if 10 <= duty_cycle <= 100:
+        if 10 <= duty_cycle <= 100:  # original range
             self.duty_cycle = duty_cycle
-            if self.is_enabled and self.chip is not None:
-                lgpio.tx_pwm(self.chip, self.pwm_pin, self.frequency, duty_cycle)
-                logger.info(f"PWM duty cycle set to {duty_cycle}%")
+            if self.is_enabled:
+                self._apply_hw_pwm()
+            logger.info(f"PWM duty cycle set to {duty_cycle}%")
             return True
         else:
-            logger.warning(f"Invalid duty cycle: {duty_cycle}. Must be between 10 and 100.")
+            logger.warning(f"Invalid duty cycle: {duty_cycle}. Must be 10–100%.")
             return False
-    
+
+    def _apply_hw_pwm(self):
+        """Apply HW PWM with current duty cycle and frequency"""
+        if self.chip is not None:
+            duty = int(self.duty_cycle * 10000)  # lgpio HW PWM: 0–1_000_000
+            try:
+                lgpio.hw_pwm_start(self.chip, self.pwm_pin, self.frequency, duty)
+            except Exception as e:
+                logger.error(f"Failed to start HW PWM: {e}")
+
     def enable_pwm(self):
-        try:
-            if self.chip is None:
-                logger.error("GPIO chip not initialized. Cannot enable PWM.")
-                return False
-            if not self.is_enabled:
-                # Start software PWM using lgpio
-                # Calculate pulse width based on duty cycle
-                pulse_width = int((self.duty_cycle / 100) * (1000000 / self.frequency))
-                lgpio.tx_pwm(self.chip, self.pwm_pin, self.frequency, self.duty_cycle)
+        if not self.is_enabled:
+            try:
+                self._apply_hw_pwm()
                 self.is_enabled = True
                 logger.info("PWM enabled")
-            return True
-        except Exception as e:
-            logger.error(f"Error enabling PWM: {e}")
-            return False
-    
-    def disable_pwm(self):
-        try:
-            if self.chip is None:
-                logger.error("GPIO chip not initialized. Cannot disable PWM.")
+                return True
+            except Exception as e:
+                logger.error(f"Error enabling PWM: {e}")
                 return False
-            if self.is_enabled:
-                lgpio.tx_pwm(self.chip, self.pwm_pin, self.frequency, 0)
+        return True
+
+    def disable_pwm(self):
+        if self.is_enabled and self.chip is not None:
+            try:
+                lgpio.hw_pwm_stop(self.chip, self.pwm_pin)
                 self.is_enabled = False
                 logger.info("PWM disabled")
-            return True
-        except Exception as e:
-            logger.error(f"Error disabling PWM: {e}")
-            return False
-    
+                return True
+            except Exception as e:
+                logger.error(f"Error disabling PWM: {e}")
+                return False
+        return True
+
     def get_rpm(self):
-        """Calculate RPM based on pulses counted since last call"""
         now = time.time()
         with self.tachometer_lock:
             pulses = self.tachometer_pulses
             self.tachometer_pulses = 0
-        
-        # Calculate time elapsed
+
         elapsed = now - self.last_rpm_calc
         self.last_rpm_calc = now
-        
-        # RPM calculation: (pulses / pulses_per_revolution) * (60 / elapsed_seconds)
+
         if elapsed > 0 and pulses > 0:
-            rpm = (pulses / self.pulses_per_rev) * (60 / elapsed)
-            self.rpm = int(rpm)
+            self.rpm = int((pulses / self.pulses_per_rev) * (60 / elapsed))
         else:
             self.rpm = 0
-        
         return self.rpm
-    
+
     def get_status(self):
         return {
             "enabled": self.is_enabled,
@@ -117,11 +107,11 @@ class PWMManager:
             "rpm": self.rpm,
             "frequency": self.frequency
         }
-    
+
     def close(self):
         try:
-            if self.is_enabled and self.chip is not None:
-                lgpio.tx_pwm(self.chip, self.pwm_pin, self.frequency, 0)
+            if self.is_enabled:
+                lgpio.hw_pwm_stop(self.chip, self.pwm_pin)
             if self.alert_handle is not None:
                 self.alert_handle.cancel()
             if self.chip is not None:
