@@ -48,29 +48,54 @@ class PWMManager:
     def _setup_hw_pwm(self):
         """Setup hardware PWM via sysfs interface"""
         try:
-            # Check if PWM chip exists
-            if not self.pwm_base_path.exists():
-                logger.error(f"PWM chip {self.pwm_chip} not found at {self.pwm_base_path}")
-                # Try to find available PWM chips
-                pwm_class = Path("/sys/class/pwm")
-                if pwm_class.exists():
-                    available = list(pwm_class.glob("pwmchip*"))
-                    logger.info(f"Available PWM chips: {[p.name for p in available]}")
+            # First, discover all available PWM chips
+            pwm_class = Path("/sys/class/pwm")
+            if not pwm_class.exists():
+                logger.error("/sys/class/pwm does not exist. PWM support not available.")
                 return
             
-            # Export PWM channel if not already exported
-            if not self.pwm_path.exists():
-                export_path = self.pwm_base_path / "export"
-                try:
-                    export_path.write_text(str(self.pwm_channel))
-                    time.sleep(0.2)  # Wait for export to complete
-                except Exception as e:
-                    logger.error(f"Failed to export PWM channel {self.pwm_channel}: {e}")
-                    return
+            available_chips = sorted(pwm_class.glob("pwmchip*"))
+            logger.info(f"Available PWM chips: {[p.name for p in available_chips]}")
             
-            # Verify PWM path was created
-            if not self.pwm_path.exists():
-                logger.error(f"PWM path {self.pwm_path} does not exist after export")
+            # Try to find the correct chip for GPIO 12 PWM
+            # On Pi 5, try pwmchip2, pwmchip0, etc.
+            chips_to_try = [2, 0, 3, 4]
+            pwm_configured = False
+            
+            for chip_num in chips_to_try:
+                test_base_path = Path(f"/sys/class/pwm/pwmchip{chip_num}")
+                if not test_base_path.exists():
+                    continue
+                
+                logger.info(f"Trying pwmchip{chip_num}...")
+                test_pwm_path = test_base_path / f"pwm{self.pwm_channel}"
+                
+                # Export if needed
+                if not test_pwm_path.exists():
+                    export_path = test_base_path / "export"
+                    try:
+                        # Read current exports to avoid duplicate
+                        export_path.write_text(str(self.pwm_channel))
+                        time.sleep(0.3)
+                    except PermissionError:
+                        logger.warning(f"Permission denied for pwmchip{chip_num}")
+                        continue
+                    except Exception as e:
+                        logger.warning(f"Cannot export on pwmchip{chip_num}: {e}")
+                        continue
+                
+                # Check if path was created
+                if test_pwm_path.exists():
+                    # Success! Update paths
+                    self.pwm_chip = chip_num
+                    self.pwm_base_path = test_base_path
+                    self.pwm_path = test_pwm_path
+                    pwm_configured = True
+                    logger.info(f"Successfully configured PWM on pwmchip{chip_num}")
+                    break
+            
+            if not pwm_configured:
+                logger.error("Could not configure PWM on any available chip")
                 return
             
             # Set period (in nanoseconds): period = 1/frequency * 1e9
@@ -78,9 +103,9 @@ class PWMManager:
             period_path = self.pwm_path / "period"
             period_path.write_text(str(period_ns))
             
-            logger.info(f"Hardware PWM configured: {self.frequency} Hz (period {period_ns} ns) on pwmchip{self.pwm_chip}")
+            logger.info(f"Hardware PWM configured: {self.frequency} Hz (period {period_ns} ns) on pwmchip{self.pwm_chip}/pwm{self.pwm_channel}")
         except Exception as e:
-            logger.error(f"Error setting up hardware PWM: {e}")
+            logger.error(f"Error setting up hardware PWM: {e}", exc_info=True)
 
     def _tachometer_callback(self, chip, gpio, level, tick):
         with self.tachometer_lock:
