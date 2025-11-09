@@ -20,8 +20,9 @@ class PWMManager:
         self.last_rpm_calc = time.time()
         self.alert_handle = None
         
-        # Hardware PWM paths (GPIO 12 = PWM0)
-        self.pwm_chip = 0
+        # Hardware PWM paths for Raspberry Pi 5
+        # GPIO 12 = PWM0 on pwmchip2 (RP1 PWM)
+        self.pwm_chip = 2  # Pi 5 uses pwmchip2 for GPIO PWM
         self.pwm_channel = 0
         self.pwm_base_path = Path(f"/sys/class/pwm/pwmchip{self.pwm_chip}")
         self.pwm_path = self.pwm_base_path / f"pwm{self.pwm_channel}"
@@ -47,18 +48,37 @@ class PWMManager:
     def _setup_hw_pwm(self):
         """Setup hardware PWM via sysfs interface"""
         try:
+            # Check if PWM chip exists
+            if not self.pwm_base_path.exists():
+                logger.error(f"PWM chip {self.pwm_chip} not found at {self.pwm_base_path}")
+                # Try to find available PWM chips
+                pwm_class = Path("/sys/class/pwm")
+                if pwm_class.exists():
+                    available = list(pwm_class.glob("pwmchip*"))
+                    logger.info(f"Available PWM chips: {[p.name for p in available]}")
+                return
+            
             # Export PWM channel if not already exported
             if not self.pwm_path.exists():
                 export_path = self.pwm_base_path / "export"
-                export_path.write_text(str(self.pwm_channel))
-                time.sleep(0.1)  # Wait for export
+                try:
+                    export_path.write_text(str(self.pwm_channel))
+                    time.sleep(0.2)  # Wait for export to complete
+                except Exception as e:
+                    logger.error(f"Failed to export PWM channel {self.pwm_channel}: {e}")
+                    return
+            
+            # Verify PWM path was created
+            if not self.pwm_path.exists():
+                logger.error(f"PWM path {self.pwm_path} does not exist after export")
+                return
             
             # Set period (in nanoseconds): period = 1/frequency * 1e9
             period_ns = int(1_000_000_000 / self.frequency)
             period_path = self.pwm_path / "period"
             period_path.write_text(str(period_ns))
             
-            logger.info(f"Hardware PWM configured: {self.frequency} Hz (period {period_ns} ns)")
+            logger.info(f"Hardware PWM configured: {self.frequency} Hz (period {period_ns} ns) on pwmchip{self.pwm_chip}")
         except Exception as e:
             logger.error(f"Error setting up hardware PWM: {e}")
 
@@ -80,6 +100,10 @@ class PWMManager:
     def _apply_hw_pwm(self):
         """Apply HW PWM with current duty cycle and frequency"""
         try:
+            if not self.pwm_path.exists():
+                logger.error(f"PWM path {self.pwm_path} does not exist. Cannot set duty cycle.")
+                return
+            
             period_ns = int(1_000_000_000 / self.frequency)
             duty_cycle_ns = int(period_ns * self.duty_cycle / 100)
             
@@ -91,6 +115,10 @@ class PWMManager:
     def enable_pwm(self):
         if not self.is_enabled:
             try:
+                if not self.pwm_path.exists():
+                    logger.error(f"PWM path {self.pwm_path} does not exist. Cannot enable PWM.")
+                    return False
+                
                 # Apply duty cycle
                 self._apply_hw_pwm()
                 
