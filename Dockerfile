@@ -1,27 +1,14 @@
 FROM python:3.11-slim
 
-# Системни зависимости и pigpio - всичко в един RUN за по-малък image
+# Минималистични системни зависимости за gpiozero
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
-    build-essential \
     libgpiod-dev \
     libgpiod3 \
-    python3-libgpiod \
-    wget \
-    unzip \
-    && wget https://github.com/joan2937/pigpio/archive/master.zip -O /tmp/pigpio.zip \
-    && unzip /tmp/pigpio.zip -d /tmp/ \
-    && cd /tmp/pigpio-master \
-    && make \
-    && make install \
-    && cd / \
-    && rm -rf /tmp/pigpio-master /tmp/pigpio.zip \
-    && apt-get remove -y wget unzip build-essential python3-dev \
-    && apt-get autoremove -y \
-    && apt-get clean \
+    gpiod \
     && rm -rf /var/lib/apt/lists/*
 
-# Python зависимости
+# Python зависимости - gpiozero as primary GPIO library
 RUN pip3 install --no-cache-dir \
     quart \
     hypercorn \
@@ -31,8 +18,7 @@ RUN pip3 install --no-cache-dir \
     lgpio \
     gpiozero \
     aiofiles \
-    python-can \
-    pigpio
+    python-can
 
 # Копиране на приложението
 COPY adc_app.py \
