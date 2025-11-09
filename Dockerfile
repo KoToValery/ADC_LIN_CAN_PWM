@@ -7,8 +7,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgpiod-dev \
     libgpiod3 \
     python3-libgpiod \
-    pigpio \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Install pigpio from source
+RUN wget https://github.com/joan2937/pigpio/archive/master.zip && \
+    unzip master.zip && \
+    cd pigpio-master && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf pigpio-master master.zip
 
 # Python зависимости (махаме libgpiod3 и python3-libgpiod от pip)
 RUN pip3 install --no-cache-dir \
