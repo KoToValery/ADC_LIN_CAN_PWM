@@ -1,8 +1,9 @@
 FROM python:3.11-slim
 
-# Системни зависимости за Pi 5
+# Системни зависимости за Pi 5 - включително build-essential за spidev
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
+    build-essential \
     libgpiod-dev \
     libgpiod3 \
     gpiod \
@@ -16,7 +17,7 @@ RUN pip3 install --no-cache-dir \
     pyserial \
     aiomqtt \
     lgpio \
-    gpiozero[lgpio] \
+    gpiozero \
     aiofiles \
     python-can
 
