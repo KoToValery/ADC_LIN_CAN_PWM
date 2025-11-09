@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Системни зависимости за хардуерен PWM управление
+# Системни зависимости за Pi 5
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     libgpiod-dev \
@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gpiod \
     && rm -rf /var/lib/apt/lists/*
 
-# Python зависимости - включително rpi_hardware_pwm за GPIO12 хардуерен PWM
+# Python зависимости - gpiozero с libgpiod backend
 RUN pip3 install --no-cache-dir \
     quart \
     hypercorn \
@@ -16,10 +16,9 @@ RUN pip3 install --no-cache-dir \
     pyserial \
     aiomqtt \
     lgpio \
-    gpiozero \
+    gpiozero[lgpio] \
     aiofiles \
-    python-can \
-    rpi_hardware_pwm
+    python-can
 
 # Копиране на приложението
 COPY adc_app.py \
