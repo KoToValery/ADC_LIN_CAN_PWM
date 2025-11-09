@@ -1,25 +1,24 @@
 FROM python:3.11-slim
 
-# Системни зависимости за Pi 5 - включително build-essential за spidev
+# Системни зависимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     build-essential \
     libgpiod-dev \
     libgpiod3 \
     gpiod \
+    && pip3 install --no-cache-dir \
+        quart \
+        hypercorn \
+        spidev \
+        pyserial \
+        aiomqtt \
+        aiofiles \
+        python-can \
+    && apt-get remove -y build-essential python3-dev \
+    && apt-get autoremove -y \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Python зависимости - gpiozero с libgpiod backend
-RUN pip3 install --no-cache-dir \
-    quart \
-    hypercorn \
-    spidev \
-    pyserial \
-    aiomqtt \
-    lgpio \
-    gpiozero \
-    aiofiles \
-    python-can
 
 # Копиране на приложението
 COPY adc_app.py \
@@ -37,3 +36,4 @@ COPY adc_app.py \
 
 # Стартиране
 CMD ["python3", "/adc_app.py"]
+
