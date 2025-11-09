@@ -1,5 +1,5 @@
 name: "PWM_test"
-version: "1.0.14"
+version: "1.0.15"
 slug: "cis3"
 description: "Add-on for monitoring ADC,LIN&CAN communication and PWM controll "
 arch:
@@ -24,27 +24,17 @@ map:
 options:
   mqtt_user: "mqtt"     
   mqtt_pass: "mqtt_pass"
-  pwm_daemon_host: "172.30.32.1"
-  pwm_daemon_port: 9000
 schema:
   mqtt_user: str
   mqtt_pass: str
-  pwm_daemon_host: str?
-  pwm_daemon_port: int?
 environment:
-  MQTT_USER: "${mqtt_user}"
-  MQTT_PASS: "${mqtt_pass}"
+  MQTT_USER: "mqtt"
+  MQTT_PASS: "mqtt_pass"
   RPI_LGPIO_CHIP: "4"
-  PWM_DAEMON_HOST: "${pwm_daemon_host}"
-  PWM_DAEMON_PORT: "${pwm_daemon_port}"
+  PWM_DAEMON_HOST: "172.30.32.1"
+  PWM_DAEMON_PORT: "9000"
 devices:
-  - /dev/spidev1.1:/dev/spidev1.1
-  - /dev/spidev1.0:/dev/spidev1.0
   - /dev/spidev0.0:/dev/spidev0.0
   - /dev/spidev0.1:/dev/spidev0.1
   - /dev/ttyAMA2:/dev/ttyAMA2
   - /dev/gpiochip4:/dev/gpiochip4
-  - /dev/mem:/dev/mem
-privileged:
-  - SYS_RAWIO
-device_tree: true
