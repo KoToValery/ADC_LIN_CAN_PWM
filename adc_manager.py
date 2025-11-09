@@ -17,19 +17,66 @@ ema_values = {ch: None for ch in range(6)}                       # EMA стой�
 
 class ADCManager:
     def __init__(self):
-        self.spi = spidev.SpiDev()
+        self.spi = None
+        self.spi_available = False
+        
+        # Try to open configured SPI bus/device first
         try:
+            self.spi = spidev.SpiDev()
             self.spi.open(SPI_BUS, SPI_DEVICE)
             self.spi.max_speed_hz = SPI_SPEED_HZ
             self.spi.mode = SPI_MODE
-            logger.info("SPI interface for ADC initialized.")
+            self.spi_available = True
+            logger.info(f"SPI interface initialized on /dev/spidev{SPI_BUS}.{SPI_DEVICE}")
         except Exception as e:
-            logger.error(f"SPI initialization error: {e}")
+            logger.error(f"SPI initialization error on /dev/spidev{SPI_BUS}.{SPI_DEVICE}: {e}")
+            
+            # Auto-detect available SPI devices
+            import os
+            try:
+                spi_devices = []
+                for dev_file in os.listdir('/dev'):
+                    if dev_file.startswith('spidev'):
+                        spi_devices.append(dev_file)
+                
+                if spi_devices:
+                    logger.info(f"Available SPI devices: {spi_devices}")
+                    
+                    # Try each available device
+                    for dev_file in sorted(spi_devices):
+                        try:
+                            # Parse bus and device from spidevX.Y
+                            parts = dev_file.replace('spidev', '').split('.')
+                            if len(parts) == 2:
+                                bus = int(parts[0])
+                                device = int(parts[1])
+                                
+                                self.spi = spidev.SpiDev()
+                                self.spi.open(bus, device)
+                                self.spi.max_speed_hz = SPI_SPEED_HZ
+                                self.spi.mode = SPI_MODE
+                                self.spi_available = True
+                                logger.info(f"SPI auto-detected and initialized on /dev/{dev_file}")
+                                break
+                        except Exception as e2:
+                            logger.debug(f"Failed to open /dev/{dev_file}: {e2}")
+                            continue
+                else:
+                    logger.error("No /dev/spidev* devices found!")
+                    logger.warning("ADC functionality will be disabled. Check device mappings in config.yaml")
+            except Exception as e3:
+                logger.error(f"SPI auto-detection failed: {e3}")
+        
+        if not self.spi_available:
+            logger.warning("ADC disabled - SPI not available")
 
     def read_adc(self, channel):
         """
         Чете raw стойност от конкретен ADC канал (0-7) през MCP3008.
         """
+        if not self.spi_available or self.spi is None:
+            return 0
+        
         if 0 <= channel <= 7:
             cmd = [1, (8 + channel) << 4, 0]  # MCP3008 формат
             try:
