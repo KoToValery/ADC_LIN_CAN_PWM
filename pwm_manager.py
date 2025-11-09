@@ -5,6 +5,14 @@ import os
 from pathlib import Path
 from logger_config import logger
 
+try:
+    from gpiozero import PWMOutputDevice
+    from gpiozero.pins.lgpio import LGPIOFactory
+    GPIOZERO_AVAILABLE = True
+except ImportError:
+    GPIOZERO_AVAILABLE = False
+    logger.warning("gpiozero not available, PWM functionality will be limited")
+
 class PWMManager:
     def __init__(self, pwm_pin=12, tachometer_pin=13, frequency=26000, pulses_per_rev=2):
         self.pwm_pin = pwm_pin
@@ -13,7 +21,7 @@ class PWMManager:
         self.pulses_per_rev = pulses_per_rev
         self.chip = None
         self.is_enabled = False
-        self.pwm_hw_available = False  # Track if HW PWM is available
+        self.pwm_hw_available = False
         self.duty_cycle = 10  # % (original range 10–100)
         self.rpm = 0
         self.tachometer_pulses = 0
@@ -21,12 +29,8 @@ class PWMManager:
         self.last_rpm_calc = time.time()
         self.alert_handle = None
         
-        # Hardware PWM paths for Raspberry Pi 5
-        # GPIO 12 = PWM0 on pwmchip2 (RP1 PWM)
-        self.pwm_chip = 2  # Pi 5 uses pwmchip2 for GPIO PWM
-        self.pwm_channel = 0
-        self.pwm_base_path = Path(f"/sys/class/pwm/pwmchip{self.pwm_chip}")
-        self.pwm_path = self.pwm_base_path / f"pwm{self.pwm_channel}"
+        # gpiozero PWM device
+        self.pwm_device = None
 
         self._setup_gpio()
 
@@ -35,7 +39,7 @@ class PWMManager:
             chip_num = int(os.getenv('RPI_LGPIO_CHIP', '4'))
             self.chip = lgpio.gpiochip_open(chip_num)
 
-            # Setup hardware PWM via sysfs
+            # Setup hardware PWM using gpiozero
             self._setup_hw_pwm()
 
             # Tachometer input
@@ -47,79 +51,31 @@ class PWMManager:
             logger.error(f"Error setting up GPIO: {e}")
 
     def _setup_hw_pwm(self):
-        """Setup hardware PWM via sysfs interface"""
-        logger.info("Starting hardware PWM setup...")
+        """Setup hardware PWM using gpiozero with lgpio backend"""
+        logger.info("Starting hardware PWM setup with gpiozero...")
         try:
-            # First, discover all available PWM chips
-            pwm_class = Path("/sys/class/pwm")
-            logger.info(f"Checking if {pwm_class} exists...")
-            
-            if not pwm_class.exists():
-                logger.error(f"/sys/class/pwm does not exist. PWM support not available.")
-                logger.error("Make sure config.yaml has 'device_tree: true' and 'privileged: [SYS_RAWIO]'")
+            if not GPIOZERO_AVAILABLE:
+                logger.error("gpiozero is not installed. Cannot setup PWM.")
                 return
             
-            available_chips = sorted(pwm_class.glob("pwmchip*"))
-            logger.info(f"Available PWM chips: {[p.name for p in available_chips]}")
+            # Create lgpio pin factory
+            pin_factory = LGPIOFactory(chip=int(os.getenv('RPI_LGPIO_CHIP', '4')))
             
-            if not available_chips:
-                logger.error("No PWM chips found in /sys/class/pwm")
-                return
+            # Create PWM device with hardware PWM support
+            # GPIO 12 on Pi 5 supports hardware PWM
+            self.pwm_device = PWMOutputDevice(
+                self.pwm_pin,
+                initial_value=0,
+                frequency=self.frequency,
+                pin_factory=pin_factory
+            )
             
-            # Try to find the correct chip for GPIO 12 PWM
-            # On Pi 5, try pwmchip2, pwmchip0, etc.
-            chips_to_try = [2, 0, 3, 4, 1]
-            pwm_configured = False
+            self.pwm_hw_available = True
+            logger.info(f"✓ Hardware PWM configured using gpiozero on GPIO {self.pwm_pin} at {self.frequency} Hz")
             
-            for chip_num in chips_to_try:
-                test_base_path = Path(f"/sys/class/pwm/pwmchip{chip_num}")
-                if not test_base_path.exists():
-                    logger.debug(f"pwmchip{chip_num} does not exist, skipping")
-                    continue
-                
-                logger.info(f"Trying pwmchip{chip_num}...")
-                test_pwm_path = test_base_path / f"pwm{self.pwm_channel}"
-                
-                # Export if needed
-                if not test_pwm_path.exists():
-                    export_path = test_base_path / "export"
-                    logger.info(f"Exporting PWM channel {self.pwm_channel} on pwmchip{chip_num}...")
-                    try:
-                        export_path.write_text(str(self.pwm_channel))
-                        time.sleep(0.3)
-                        logger.info(f"Export command sent, waiting...")
-                    except PermissionError as e:
-                        logger.warning(f"Permission denied for pwmchip{chip_num}: {e}")
-                        continue
-                    except Exception as e:
-                        logger.warning(f"Cannot export on pwmchip{chip_num}: {e}")
-                        continue
-                
-                # Check if path was created
-                if test_pwm_path.exists():
-                    # Success! Update paths
-                    self.pwm_chip = chip_num
-                    self.pwm_base_path = test_base_path
-                    self.pwm_path = test_pwm_path
-                    self.pwm_hw_available = True
-                    pwm_configured = True
-                    logger.info(f"✓ Successfully configured PWM on pwmchip{chip_num}/pwm{self.pwm_channel}")
-                    break
-                else:
-                    logger.warning(f"Path {test_pwm_path} does not exist after export")
-            
-            if not pwm_configured:
-                logger.error("Could not configure PWM on any available chip")
-                return
-            
-            # Set period (in nanoseconds): period = 1/frequency * 1e9
-            period_ns = int(1_000_000_000 / self.frequency)
-            period_path = self.pwm_path / "period"
-            period_path.write_text(str(period_ns))
-            
-            logger.info(f"✓ Hardware PWM configured: {self.frequency} Hz (period {period_ns} ns) on pwmchip{self.pwm_chip}/pwm{self.pwm_channel}")
         except Exception as e:
-            logger.error(f"Error setting up hardware PWM: {e}", exc_info=True)
+            logger.error(f"Error setting up hardware PWM with gpiozero: {e}", exc_info=True)
+            self.pwm_hw_available = False
 
     def _tachometer_callback(self, chip, gpio, level, tick):
         with self.tachometer_lock:
@@ -139,38 +95,29 @@ class PWMManager:
     def _apply_hw_pwm(self):
         """Apply HW PWM with current duty cycle and frequency"""
         try:
-            if not self.pwm_path.exists():
-                logger.error(f"PWM path {self.pwm_path} does not exist. Cannot set duty cycle.")
+            if not self.pwm_hw_available or self.pwm_device is None:
+                logger.error("Hardware PWM is not available. Cannot set duty cycle.")
                 return
             
-            period_ns = int(1_000_000_000 / self.frequency)
-            duty_cycle_ns = int(period_ns * self.duty_cycle / 100)
+            # gpiozero uses 0.0 to 1.0 for duty cycle
+            duty_value = self.duty_cycle / 100.0
+            self.pwm_device.value = duty_value
             
-            duty_cycle_path = self.pwm_path / "duty_cycle"
-            duty_cycle_path.write_text(str(duty_cycle_ns))
         except Exception as e:
             logger.error(f"Failed to set HW PWM duty cycle: {e}")
 
     def enable_pwm(self):
         if not self.is_enabled:
             try:
-                if not self.pwm_hw_available:
+                if not self.pwm_hw_available or self.pwm_device is None:
                     logger.error("Hardware PWM is not available. Cannot enable PWM.")
                     return False
                 
-                if not self.pwm_path.exists():
-                    logger.error(f"PWM path {self.pwm_path} does not exist. Cannot enable PWM.")
-                    return False
-                
-                # Apply duty cycle
+                # Apply duty cycle (gpiozero PWM is always "on", just set value)
                 self._apply_hw_pwm()
                 
-                # Enable PWM
-                enable_path = self.pwm_path / "enable"
-                enable_path.write_text("1")
-                
                 self.is_enabled = True
-                logger.info("Hardware PWM enabled")
+                logger.info(f"Hardware PWM enabled at {self.duty_cycle}% duty cycle")
                 return True
             except Exception as e:
                 logger.error(f"Error enabling PWM: {e}")
@@ -180,9 +127,8 @@ class PWMManager:
     def disable_pwm(self):
         if self.is_enabled:
             try:
-                # Disable PWM
-                enable_path = self.pwm_path / "enable"
-                enable_path.write_text("0")
+                if self.pwm_device is not None:
+                    self.pwm_device.value = 0
                 
                 self.is_enabled = False
                 logger.info("Hardware PWM disabled")
@@ -217,14 +163,9 @@ class PWMManager:
 
     def close(self):
         try:
-            # Disable PWM
-            if self.is_enabled:
-                self.disable_pwm()
-            
-            # Unexport PWM channel
-            if self.pwm_path.exists():
-                unexport_path = self.pwm_base_path / "unexport"
-                unexport_path.write_text(str(self.pwm_channel))
+            # Disable and close PWM device
+            if self.pwm_device is not None:
+                self.pwm_device.close()
             
             # Close tachometer callback
             if self.alert_handle is not None:
