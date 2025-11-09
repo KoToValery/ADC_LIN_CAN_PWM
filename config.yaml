@@ -1,5 +1,5 @@
 name: "PWM_test"
-version: "1.0.3"
+version: "1.0.4"
 slug: "cis3"
 description: "Add-on for monitoring ADC,LIN&CAN communication and PWM controll "
 arch:
@@ -36,3 +36,6 @@ devices:
   - /dev/spidev1.0:/dev/spidev1.0
   - /dev/ttyAMA2:/dev/ttyAMA2
   - /dev/gpiochip4:/dev/gpiochip4
+privileged:
+  - SYS_RAWIO
+device_tree: true

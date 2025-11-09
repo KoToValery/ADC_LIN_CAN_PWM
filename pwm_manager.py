@@ -2,6 +2,7 @@ import threading
 import time
 import lgpio
 import os
+from pathlib import Path
 from logger_config import logger
 
 class PWMManager:
@@ -18,6 +19,12 @@ class PWMManager:
         self.tachometer_lock = threading.Lock()
         self.last_rpm_calc = time.time()
         self.alert_handle = None
+        
+        # Hardware PWM paths (GPIO 12 = PWM0)
+        self.pwm_chip = 0
+        self.pwm_channel = 0
+        self.pwm_base_path = Path(f"/sys/class/pwm/pwmchip{self.pwm_chip}")
+        self.pwm_path = self.pwm_base_path / f"pwm{self.pwm_channel}"
 
         self._setup_gpio()
 
@@ -26,8 +33,8 @@ class PWMManager:
             chip_num = int(os.getenv('RPI_LGPIO_CHIP', '4'))
             self.chip = lgpio.gpiochip_open(chip_num)
 
-            # HW PWM pin setup
-            lgpio.gpio_claim_output(self.chip, self.pwm_pin)
+            # Setup hardware PWM via sysfs
+            self._setup_hw_pwm()
 
             # Tachometer input
             lgpio.gpio_claim_input(self.chip, self.tachometer_pin, lgpio.SET_PULL_DOWN)
@@ -36,6 +43,24 @@ class PWMManager:
             logger.info(f"GPIO pins configured: HW PWM on GPIO {self.pwm_pin}, Tachometer on GPIO {self.tachometer_pin}")
         except Exception as e:
             logger.error(f"Error setting up GPIO: {e}")
+
+    def _setup_hw_pwm(self):
+        """Setup hardware PWM via sysfs interface"""
+        try:
+            # Export PWM channel if not already exported
+            if not self.pwm_path.exists():
+                export_path = self.pwm_base_path / "export"
+                export_path.write_text(str(self.pwm_channel))
+                time.sleep(0.1)  # Wait for export
+            
+            # Set period (in nanoseconds): period = 1/frequency * 1e9
+            period_ns = int(1_000_000_000 / self.frequency)
+            period_path = self.pwm_path / "period"
+            period_path.write_text(str(period_ns))
+            
+            logger.info(f"Hardware PWM configured: {self.frequency} Hz (period {period_ns} ns)")
+        except Exception as e:
+            logger.error(f"Error setting up hardware PWM: {e}")
 
     def _tachometer_callback(self, chip, gpio, level, tick):
         with self.tachometer_lock:
@@ -54,19 +79,27 @@ class PWMManager:
 
     def _apply_hw_pwm(self):
         """Apply HW PWM with current duty cycle and frequency"""
-        if self.chip is not None:
-            duty = int(self.duty_cycle * 10000)  # lgpio HW PWM: 0–1_000_000
-            try:
-                lgpio.hw_pwm_start(self.chip, self.pwm_pin, self.frequency, duty)
-            except Exception as e:
-                logger.error(f"Failed to start HW PWM: {e}")
+        try:
+            period_ns = int(1_000_000_000 / self.frequency)
+            duty_cycle_ns = int(period_ns * self.duty_cycle / 100)
+            
+            duty_cycle_path = self.pwm_path / "duty_cycle"
+            duty_cycle_path.write_text(str(duty_cycle_ns))
+        except Exception as e:
+            logger.error(f"Failed to set HW PWM duty cycle: {e}")
 
     def enable_pwm(self):
         if not self.is_enabled:
             try:
+                # Apply duty cycle
                 self._apply_hw_pwm()
+                
+                # Enable PWM
+                enable_path = self.pwm_path / "enable"
+                enable_path.write_text("1")
+                
                 self.is_enabled = True
-                logger.info("PWM enabled")
+                logger.info("Hardware PWM enabled")
                 return True
             except Exception as e:
                 logger.error(f"Error enabling PWM: {e}")
@@ -74,11 +107,14 @@ class PWMManager:
         return True
 
     def disable_pwm(self):
-        if self.is_enabled and self.chip is not None:
+        if self.is_enabled:
             try:
-                lgpio.hw_pwm_stop(self.chip, self.pwm_pin)
+                # Disable PWM
+                enable_path = self.pwm_path / "enable"
+                enable_path.write_text("0")
+                
                 self.is_enabled = False
-                logger.info("PWM disabled")
+                logger.info("Hardware PWM disabled")
                 return True
             except Exception as e:
                 logger.error(f"Error disabling PWM: {e}")
@@ -110,12 +146,23 @@ class PWMManager:
 
     def close(self):
         try:
+            # Disable PWM
             if self.is_enabled:
-                lgpio.hw_pwm_stop(self.chip, self.pwm_pin)
+                self.disable_pwm()
+            
+            # Unexport PWM channel
+            if self.pwm_path.exists():
+                unexport_path = self.pwm_base_path / "unexport"
+                unexport_path.write_text(str(self.pwm_channel))
+            
+            # Close tachometer callback
             if self.alert_handle is not None:
                 self.alert_handle.cancel()
+            
+            # Close GPIO chip
             if self.chip is not None:
                 lgpio.gpiochip_close(self.chip)
+            
             logger.info("PWM Manager closed")
         except Exception as e:
             logger.error(f"Error closing PWM Manager: {e}")
