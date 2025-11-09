@@ -1,6 +1,5 @@
 import os
 import logging
-import asyncio
 import threading
 import time
 
@@ -14,7 +13,7 @@ class PWMManager:
         self.pulses_per_rev = pulses_per_rev
         
         # PWM chip configuration for Pi 5
-        self.pwm_chip = "pwmchip2"  # Pi 5 uses pwmchip2
+        self.pwm_chip = "pwmchip0"  # Prefer pwmchip0 (matches host)
         self.pwm_channel = 0  # GPIO12 = PWM0 channel 0
         self.pwm_path = f"/sys/class/pwm/{self.pwm_chip}/pwm{self.pwm_channel}"
         self.period_ns = None
@@ -28,20 +27,8 @@ class PWMManager:
         self.tachometer_lock = threading.Lock()
         self.last_rpm_calc = time.time()
         
-        # Synchronous initialization
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.create_task(self._async_init())
-            else:
-                loop.run_until_complete(self.initialize_pwm(self.frequency))
-        except:
-            # If no event loop, initialize will happen on first use
-            pass
-    
-    async def _async_init(self):
-        """Async initialization"""
-        await self.initialize_pwm(self.frequency)
+        # Synchronous initialization to avoid race conditions
+        self.initialize_pwm(self.frequency)
     
     def _write_file(self, path, value):
         """Write value to file"""
@@ -56,7 +43,7 @@ class PWMManager:
             logger.error(f"Error writing to {path}: {e}")
             return False
     
-    async def initialize_pwm(self, frequency: int = 26000):
+    def initialize_pwm(self, frequency: int = 26000):
         """Initialize hardware PWM on GPIO12 at 26 kHz"""
         try:
             self.frequency = frequency
@@ -66,8 +53,8 @@ class PWMManager:
             logger.info(f"  - Frequency: {frequency} Hz ({frequency/1000} kHz)")
             logger.info(f"  - Period: {self.period_ns} ns")
             
-            # Try multiple PWM chips (Pi 5 can be pwmchip0, 2, or 3)
-            for chip_name in ["pwmchip2", "pwmchip0", "pwmchip3"]:
+            # Try multiple PWM chips (prefer pwmchip0 first, then fallbacks)
+            for chip_name in ["pwmchip0", "pwmchip2", "pwmchip3"]:
                 test_path = f"/sys/class/pwm/{chip_name}"
                 if os.path.exists(test_path):
                     self.pwm_chip = chip_name
@@ -85,7 +72,7 @@ class PWMManager:
                 logger.info("Exporting PWM channel 0...")
                 if not self._write_file(export_path, str(self.pwm_channel)):
                     return False
-                await asyncio.sleep(0.5)
+                time.sleep(0.5)
             
             # Set period
             period_path = f"{self.pwm_path}/period"
