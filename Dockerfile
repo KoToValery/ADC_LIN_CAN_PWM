@@ -15,8 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         aiomqtt \
         aiofiles \
         python-can \
-    && apt-get remove -y build-essential python3-dev \
-    && apt-get autoremove -y \
+
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
