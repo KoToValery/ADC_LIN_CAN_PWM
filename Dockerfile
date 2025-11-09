@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Минималистични системни зависимости за gpiozero
+# Системни зависимости за хардуерен PWM управление
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     libgpiod-dev \
@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gpiod \
     && rm -rf /var/lib/apt/lists/*
 
-# Python зависимости - gpiozero as primary GPIO library
+# Python зависимости - включително rpi_hardware_pwm за GPIO12 хардуерен PWM
 RUN pip3 install --no-cache-dir \
     quart \
     hypercorn \
@@ -18,7 +18,8 @@ RUN pip3 install --no-cache-dir \
     lgpio \
     gpiozero \
     aiofiles \
-    python-can
+    python-can \
+    rpi_hardware_pwm
 
 # Копиране на приложението
 COPY adc_app.py \
