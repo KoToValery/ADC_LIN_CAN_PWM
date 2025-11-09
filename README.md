@@ -21,6 +21,7 @@ Instructions:
         In the bottom-right corner, click the Add Integration button.
         From the list, select MQTT.
 
+       To get the MQTT sensors working, you need to install an MQTT broker add-on like Mosquitto
     Install an MQTT Broker Mosquitto.
-    In Mosquitto broker-> Configuration under Logins click Add .. creat new User with name " ...." and pass " ..."
-    To get the MQTT sensors working, you need to install an MQTT broker add-on like Mosquitto.
+    In Mosquitto broker-> Configuration under Logins click Add .. creat new User with name and password.
+ .
