@@ -36,3 +36,4 @@ COPY adc_app.py \
 
 # Стартиране
 CMD ["python3", "/adc_app.py"]
+

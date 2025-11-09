@@ -1,4 +1,5 @@
 import os
+import os
 import logging
 import asyncio
 import threading
@@ -103,6 +104,7 @@ class PWMManager:
             
             self.is_initialized = True
             logger.info("✓ PWM на GPIO12 инициализиран успешно (26 kHz)")
+            logger.info("✓ PWM на GPIO12 инициализиран успешно (26 kHz)")
             return True
             
         except Exception as e:
@@ -196,7 +198,12 @@ class PWMManager:
         - 0% = 0 ns
         - 50% = 19230 ns
         - 100% = 38461 ns
+        За 26 kHz с период 38461 ns:
+        - 0% = 0 ns
+        - 50% = 19230 ns
+        - 100% = 38461 ns
         """
+        if not self.is_initialized or self.period_ns is None:
         if not self.is_initialized or self.period_ns is None:
             logger.warning("PWM не е инициализиран")
             return False
@@ -212,6 +219,15 @@ class PWMManager:
             # Изчисли duty cycle в наносекунди
             duty_ns = int(self.period_ns * value)
             
+            # Изчисли duty cycle в наносекунди
+            duty_ns = int(self.period_ns * value)
+            
+            # Напишете duty cycle
+            duty_path = f"{self.pwm_path}/duty_cycle"
+            self._write_file(duty_path, str(duty_ns))
+            
+            logger.debug(f"PWM duty cycle: {value*100:.1f}% ({duty_ns} ns)")
+            self.duty_cycle_ns = duty_ns
             # Напишете duty cycle
             duty_path = f"{self.pwm_path}/duty_cycle"
             self._write_file(duty_path, str(duty_ns))
@@ -227,11 +243,18 @@ class PWMManager:
     async def set_pwm_frequency(self, frequency: int):
         """
         Променя PWM честотата (спира и рестартира PWM)
+        Променя PWM честотата (спира и рестартира PWM)
         """
+        if not self.is_initialized:
         if not self.is_initialized:
             return False
         
         try:
+            # Спрете PWM
+            enable_path = f"{self.pwm_path}/enable"
+            self._write_file(enable_path, "0")
+            
+            # Задайте нов период
             # Спрете PWM
             enable_path = f"{self.pwm_path}/enable"
             self._write_file(enable_path, "0")
@@ -247,14 +270,26 @@ class PWMManager:
             self._write_file(enable_path, "1")
             
             logger.info(f"PWM честота променена на {frequency} Hz ({frequency/1000} kHz)")
+            self.period_ns = int(1e9 / frequency)
+            
+            period_path = f"{self.pwm_path}/period"
+            self._write_file(period_path, str(self.period_ns))
+            
+            # Включете отново
+            self._write_file(enable_path, "1")
+            
+            logger.info(f"PWM честота променена на {frequency} Hz ({frequency/1000} kHz)")
             return True
             
+            
         except Exception as e:
+            logger.error(f"Грешка при промяна на честота: {e}")
             logger.error(f"Грешка при промяна на честота: {e}")
             return False
     
     async def stop_pwm(self):
         """Спира PWM"""
+        if not self.is_initialized:
         if not self.is_initialized:
             return False
         
@@ -266,15 +301,30 @@ class PWMManager:
             duty_path = f"{self.pwm_path}/duty_cycle"
             self._write_file(duty_path, "0")
             
+            enable_path = f"{self.pwm_path}/enable"
+            self._write_file(enable_path, "0")
+            
+            # Задайте duty cycle на 0
+            duty_path = f"{self.pwm_path}/duty_cycle"
+            self._write_file(duty_path, "0")
+            
             logger.info("PWM спран")
             return True
         except Exception as e:
+            logger.error(f"Грешка при спирането на PWM: {e}")
             logger.error(f"Грешка при спирането на PWM: {e}")
             return False
     
     async def cleanup(self):
         """Почиства PWM ресурси"""
+        """Почиства PWM ресурси"""
         try:
+            await self.stop_pwm()
+            
+            # Експортирайте PWM обратно
+            unexport_path = f"/sys/class/pwm/{self.pwm_chip}/unexport"
+            self._write_file(unexport_path, str(self.pwm_channel))
+            
             await self.stop_pwm()
             
             # Експортирайте PWM обратно
