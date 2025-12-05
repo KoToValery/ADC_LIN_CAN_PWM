@@ -12,7 +12,7 @@ from urllib.parse import urlparse, parse_qs
 import threading
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,  # Minimize SD card wear in daemon
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
