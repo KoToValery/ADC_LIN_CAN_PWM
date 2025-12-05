@@ -1,7 +1,7 @@
 name: "PWM_test"
-version: "1.0.18"
+version: "1.0.19"
 slug: "cis3"
-description: "Add-on for monitoring ADC,LIN communication and PWM controll "
+description: "Add-on for monitoring ADC, LIN communication and PWM control "
 arch:
   - armhf
   - armv7

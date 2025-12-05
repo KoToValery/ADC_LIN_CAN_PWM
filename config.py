@@ -9,8 +9,8 @@ import os
 HTTP_PORT = 8099
 
 # SPI (ADC) Configuration
-SPI_BUS = 1
-SPI_DEVICE = 1
+SPI_BUS = 0
+SPI_DEVICE = 0
 SPI_SPEED_HZ = 1_000_000  # 1 MHz
 SPI_MODE = 0
 
