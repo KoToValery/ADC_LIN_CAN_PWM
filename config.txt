@@ -1,0 +1,24 @@
+# За SPI (активира SPI шината)
+dtparam=spi=on
+
+# За UART (активира серийния порт)
+dtparam=uart=on
+enable_uart=1
+
+# За PWM на GPIO12 (функция 4 = хардуерен PWM)
+dtoverlay=pwm,pin=12,func=4
+
+# Ако използваш втория UART порт (ttyAMA2)
+dtoverlay=uart2
+
+# 1. Клонирай репото
+git clone https://github.com/KoToValery/ADC_LIN_CAN_PWM.git
+
+# 2. Влез в host-daemon директорията
+cd ADC_LIN_CAN_PWM/host-daemon
+
+# 3. Направи install скрипта изпълним
+chmod +x install.sh
+
+# 4. Инсталирай (ще копира файловете и стартира systemd service)
+sudo ./install.sh

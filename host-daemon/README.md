@@ -13,9 +13,18 @@ sudo nano /boot/firmware/config.txt
 sudo reboot
 
 # 3. Инсталирай daemon
-cd host-daemon/
+# 1. Клонирай репото
+git clone https://github.com/KoToValery/ADC_LIN_CAN_PWM.git
+
+# 2. Влез в host-daemon директорията
+cd ADC_LIN_CAN_PWM/host-daemon
+
+# 3. Направи install скрипта изпълним
 chmod +x install.sh
+
+# 4. Инсталирай (ще копира файловете и стартира systemd service)
 sudo ./install.sh
+
 
 # 4. Провери
 sudo systemctl status pwm-daemon

@@ -3,7 +3,7 @@
 import logging
 
 logging.basicConfig(
-    level=logging.INFO,  # Set to DEBUG for more verbose output if needed
+    level=logging.ERROR,  # Reduced to minimize SD card wear
     format='[%(asctime)s] [%(name)s] %(levelname)s: %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
