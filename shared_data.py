@@ -1,5 +1,7 @@
 # shared_data.py
 
+from config import PWM_FREQUENCY
+
 latest_data = {
     "adc_channels": {
         "channel_0": {"voltage": 0.0, "unit": "V"},
@@ -20,6 +22,6 @@ latest_data = {
         "enabled": False,
         "duty_cycle": 10,
         "rpm": 0,
-        "frequency": 26000
+        "frequency": PWM_FREQUENCY
     }
 }
