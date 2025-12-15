@@ -1,0 +1,6 @@
+ValueError: invalid literal for int() with base 10: '{{ pwm_frequency }}'
+Traceback (most recent call last):
+  File "/adc_app.py", line 5, in <module>
+    from config import (HTTP_PORT, ADC_INTERVAL, LIN_INTERVAL, MQTT_INTERVAL, WS_INTERVAL,
+  File "/config.py", line 67, in <module>
+    PWM_FREQUENCY = int(os.getenv('PWM_FREQUENCY', '1000'))  # Read from HAOS config (default 1kHz)

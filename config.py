@@ -1,6 +1,7 @@
 # config.py
 
 import os
+import json
 
 # ============================
 # Basic Logging & Config
@@ -62,9 +63,23 @@ MQTT_CLIENT_ID = "cis3_adc_mqtt_client"
 # ============================
 # PWM Fan Configuration
 # ============================
+def load_haos_options():
+    """Load options from Home Assistant add-on configuration"""
+    try:
+        with open('/data/options.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        print(f"Error reading HAOS options: {e}")
+        return {}
+
+# Load HAOS options
+haos_options = load_haos_options()
+
 PWM_PIN = 12           # BCM GPIO 12
 TACH_PIN = 13          # BCM GPIO 13
-PWM_FREQUENCY = int(os.getenv('PWM_FREQUENCY', '1000'))  # Read from HAOS config (default 1kHz)
+PWM_FREQUENCY = haos_options.get('pwm_frequency', 1000)  # Read from HAOS add-on config (default 1kHz)
 PULSES_PER_REV = 2     # Pulses per revolution from tachometer
 
 # ============================
