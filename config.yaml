@@ -1,5 +1,5 @@
 name: "PWM_test"
-version: "1.0.19"
+version: "1.0.20"
 slug: "cis3"
 description: "Add-on for monitoring ADC, LIN communication and PWM control "
 arch:
@@ -24,9 +24,11 @@ map:
 options:
   mqtt_user: "mqtt"     
   mqtt_pass: "mqtt_pass"
+  pwm_frequency: 1000
 schema:
   mqtt_user: str
   mqtt_pass: str
+  pwm_frequency: int(500,6000)
 environment:
   MQTT_USER: "mqtt"
   MQTT_PASS: "mqtt_pass"
