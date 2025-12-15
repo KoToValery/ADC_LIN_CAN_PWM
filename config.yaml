@@ -1,5 +1,5 @@
 name: "PWM_test"
-ват в итversion: "1.0.21"
+version: "1.0.21"
 slug: "cis3"
 description: "Add-on for monitoring ADC, LIN communication and PWM control "
 arch:
