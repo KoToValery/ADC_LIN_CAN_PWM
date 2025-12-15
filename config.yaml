@@ -1,5 +1,5 @@
 name: "PWM_test"
-version: "1.0.21"
+version: "1.0.22"
 slug: "cis3"
 description: "Add-on for monitoring ADC, LIN communication and PWM control "
 arch:
@@ -35,7 +35,8 @@ environment:
   RPI_LGPIO_CHIP: "4"
   PWM_DAEMON_HOST: "172.30.32.1"
   PWM_DAEMON_PORT: "9000"
-  PWM_FREQUENCY: "1000"
+  environment:
+  PWM_FREQUENCY: "{{pwm_frequency}}"
 devices:
   - /dev/spidev0.0:/dev/spidev0.0
   - /dev/spidev0.1:/dev/spidev0.1
