@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class PWMManager:
     """PWM Manager с HTTP комуникация към host daemon"""
     
-    def __init__(self, pwm_pin=12, tachometer_pin=13, frequency=26000, pulses_per_rev=2):
+    def __init__(self, pwm_pin=12, tachometer_pin=13, frequency=1000, pulses_per_rev=2):
         self.pwm_pin = pwm_pin
         self.tachometer_pin = tachometer_pin
         self.frequency = frequency
@@ -75,7 +75,7 @@ class PWMManager:
         logger.error(f"✗ Cannot connect to pwm-daemon at {self.base_url}")
         return False
     
-    def initialize_pwm(self, frequency: int = 26000):
+    def initialize_pwm(self, frequency: int = 1000):
         """Initialize hardware PWM on GPIO12 at specified frequency"""
         try:
             self.frequency = frequency
