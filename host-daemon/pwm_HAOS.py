@@ -149,7 +149,7 @@ def load_options():
     default_options = {
         "gpio_pin": 12,
         "duty_cycle": 50,
-        "pwm_frequency": 1000,
+        "frequency": 26000,
         "auto_start": True,
         "daemon_host": "127.0.0.1",
         "daemon_port": 9000
@@ -179,7 +179,7 @@ def main():
     options = load_options()
     gpio_pin = options.get("gpio_pin", 12)
     duty_cycle = options.get("duty_cycle", 50)
-    frequency = options.get("pwm_frequency", 1000)
+    frequency = options.get("frequency", 26000)
     auto_start = options.get("auto_start", True)
     daemon_host = options.get("daemon_host", "127.0.0.1")
     daemon_port = options.get("daemon_port", 9000)

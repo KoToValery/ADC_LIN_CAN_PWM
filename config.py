@@ -64,7 +64,7 @@ MQTT_CLIENT_ID = "cis3_adc_mqtt_client"
 # ============================
 PWM_PIN = 12           # BCM GPIO 12
 TACH_PIN = 13          # BCM GPIO 13
-PWM_FREQUENCY = int(os.getenv('PWM_FREQUENCY', '26000'))  # Read from HAOS config (default 26kHz)
+PWM_FREQUENCY = int(os.getenv('PWM_FREQUENCY', '1000'))  # Read from HAOS config (default 1kHz)
 PULSES_PER_REV = 2     # Pulses per revolution from tachometer
 
 # ============================
