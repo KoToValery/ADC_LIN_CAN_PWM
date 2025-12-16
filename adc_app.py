@@ -51,12 +51,25 @@ async def pwm_loop():
             desired_enabled = latest_data["pwm_fan"]["enabled"]
             desired_duty = latest_data["pwm_fan"]["duty_cycle"]
             
+            # Get current status from daemon to sync state
+            current_status = pwm_manager.get_status()
+            if current_status:
+                pwm_manager.is_enabled = current_status.get("enabled", False)
+            
             if desired_enabled and not pwm_manager.is_enabled:
-                pwm_manager.enable_pwm()
-                pwm_manager.set_duty_cycle(desired_duty)
+                success = pwm_manager.enable_pwm()
+                if success:
+                    pwm_manager.set_duty_cycle(desired_duty)
+                else:
+                    # If enable failed, update shared_data to reflect reality
+                    latest_data["pwm_fan"]["enabled"] = False
             elif not desired_enabled and pwm_manager.is_enabled:
-                pwm_manager.disable_pwm()
-            elif desired_enabled:
+                success = pwm_manager.disable_pwm()
+                if not success:
+                    # If disable failed, update shared_data to reflect reality
+                    latest_data["pwm_fan"]["enabled"] = True
+            elif desired_enabled and pwm_manager.is_enabled:
+                # Just update duty cycle if already enabled
                 pwm_manager.set_duty_cycle(desired_duty)
 
             # Update RPM once per second

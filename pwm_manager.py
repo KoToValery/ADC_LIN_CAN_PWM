@@ -177,7 +177,27 @@ class PWMManager:
         return self.rpm
     
     def get_status(self):
-        """Get current PWM status"""
+        """Get current PWM status from daemon"""
+        if not self.is_initialized:
+            return {
+                "enabled": False,
+                "duty_cycle": self.duty_cycle,
+                "rpm": self.rpm,
+                "frequency": self.frequency
+            }
+        
+        # Get real status from daemon
+        result = self._make_request(f"/status/{self.pwm_pin}", "GET")
+        if result and result.get("status") == "ok":
+            daemon_status = result.get("pwm", {})
+            return {
+                "enabled": daemon_status.get("enabled", False),
+                "duty_cycle": daemon_status.get("duty_cycle", self.duty_cycle),
+                "rpm": self.rpm,  # RPM is local (tachometer)
+                "frequency": daemon_status.get("frequency", self.frequency)
+            }
+        
+        # Fallback to local state if daemon not accessible
         return {
             "enabled": self.is_enabled,
             "duty_cycle": self.duty_cycle,
