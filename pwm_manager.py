@@ -23,7 +23,7 @@ class PWMManager:
         self.base_url = f"http://{self.daemon_host}:{self.daemon_port}"
         
         # PWM state
-        self.duty_cycle = 10  # percentage 10-100%
+        self.duty_cycle = 0  # percentage 0-100%
         self.is_enabled = False
         self.is_initialized = False
         
@@ -38,6 +38,8 @@ class PWMManager:
         if self._check_daemon_connection():
             # Инициализация на PWM през daemon
             self.initialize_pwm(self.frequency)
+            # Set to safe state (User 0 -> HW 100 Stop)
+            self.set_duty_cycle(0)
         else:
             logger.warning(f"PWM daemon not accessible at {self.base_url}")
             logger.warning("Make sure pwm-daemon is running on host (sudo systemctl status pwm-daemon)")
@@ -113,30 +115,49 @@ class PWMManager:
             return False
     
     def set_duty_cycle(self, duty_cycle):
-        """Set PWM duty cycle (10-100%)"""
+        """Set PWM duty cycle (0-100%)"""
         if not self.is_initialized:
             logger.warning("PWM not initialized, cannot set duty cycle")
             return False
         
-        if 10 <= duty_cycle <= 100:
+        if 0 <= duty_cycle <= 100:
             self.duty_cycle = duty_cycle
+            
+            # Map user % (0-100) to hardware % (100-0)
+            hw_duty = self._map_user_to_hw(duty_cycle)
             
             # Update duty cycle via daemon
             data = {
                 "gpio_pin": self.pwm_pin,
-                "duty_cycle": duty_cycle
+                "duty_cycle": hw_duty
             }
             
             result = self._make_request("/duty", "POST", data)
             if result and result.get("status") == "ok":
-                logger.info(f"PWM duty cycle set to {duty_cycle}%")
+                logger.info(f"PWM duty cycle set to {duty_cycle}% (HW: {hw_duty}%)")
                 return True
             else:
                 logger.error(f"Failed to set duty cycle to {duty_cycle}%")
                 return False
         else:
-            logger.warning(f"Duty cycle {duty_cycle}% out of range (10-100%)")
+            logger.warning(f"Duty cycle {duty_cycle}% out of range (0-100%)")
             return False
+
+    def _map_user_to_hw(self, user_val):
+        """Map user scale (1-100) to hardware scale (90-0)"""
+        if user_val <= 0: return 100  # OFF
+        if user_val >= 100: return 0  # MAX
+        
+        # Linear mapping: H = (1000 - 10*U) / 11
+        return int((1000 - 10 * user_val) / 11)
+
+    def _map_hw_to_user(self, hw_val):
+        """Map hardware scale (90-0) to user scale (1-100)"""
+        if hw_val >= 95: return 0     # OFF
+        if hw_val <= 0: return 100    # MAX
+        
+        # Linear mapping: U = (1000 - 11*H) / 10
+        return int((1000 - 11 * hw_val) / 10)
     
     def enable_pwm(self):
         """Enable PWM output"""
@@ -190,9 +211,14 @@ class PWMManager:
         result = self._make_request(f"/status/{self.pwm_pin}", "GET")
         if result and result.get("status") == "ok":
             daemon_status = result.get("pwm", {})
+            
+            # Map hardware duty back to user scale
+            hw_duty = daemon_status.get("duty_cycle", 100)
+            user_duty = self._map_hw_to_user(hw_duty)
+            
             return {
                 "enabled": daemon_status.get("enabled", False),
-                "duty_cycle": daemon_status.get("duty_cycle", self.duty_cycle),
+                "duty_cycle": user_duty,
                 "rpm": self.rpm,  # RPM is local (tachometer)
                 "frequency": daemon_status.get("frequency", self.frequency)
             }
