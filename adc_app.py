@@ -65,7 +65,13 @@ async def pwm_loop():
                     latest_data["pwm_fan"]["enabled"] = False
             elif not desired_enabled and pwm_manager.is_enabled:
                 success = pwm_manager.disable_pwm()
-                if not success:
+                if success:
+                    # Update shared_data to 0% to reflect the stopped state
+                    latest_data["pwm_fan"]["duty_cycle"] = 0
+                    # Publish new duty to MQTT is handled in mqtt_loop_task implicitly 
+                    # by reading latest_data, but we need to ensure the state topic is updated
+                    # actually mqtt_loop_task only publishes status every 1s, which is fine
+                else:
                     # If disable failed, update shared_data to reflect reality
                     latest_data["pwm_fan"]["enabled"] = True
             elif desired_enabled and pwm_manager.is_enabled:
