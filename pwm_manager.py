@@ -170,7 +170,12 @@ class PWMManager:
         result = self._make_request("/enable", "POST", data)
         if result and result.get("status") == "ok":
             self.is_enabled = True
-            logger.info("PWM enabled")
+            
+            # FORCE set the current duty cycle after enabling
+            # This ensures we start at the correct speed defined by self.duty_cycle
+            self.set_duty_cycle(self.duty_cycle)
+            
+            logger.info(f"PWM enabled (starting at {self.duty_cycle}%)")
             return True
         else:
             logger.error("Failed to enable PWM")

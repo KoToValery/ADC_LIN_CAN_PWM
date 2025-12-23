@@ -55,7 +55,7 @@ class MqttManager:
                 except ValueError:
                     logger.warning(f"Ignoring non-integer duty payload: {payload}")
                     return
-                duty = max(10, min(100, duty))
+                duty = max(0, min(100, duty))
                 latest_data["pwm_fan"]["duty_cycle"] = duty
                 # Echo state
                 self.client.publish("cis3/fan/duty/state", str(duty), retain=True)
@@ -233,7 +233,7 @@ class MqttManager:
                 "unique_id": "cis3_fan_duty",
                 "command_topic": "cis3/fan/duty/set",
                 "state_topic": "cis3/fan/duty/state",
-                "min": 10,
+                "min": 0,
                 "max": 100,
                 "step": 1,
                 "unit_of_measurement": "%",
