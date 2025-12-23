@@ -186,6 +186,10 @@ class PWMManager:
         if not self.is_initialized:
             return False
         
+        # Explicitly set duty to 0 (HW 100/Stop) before disabling
+        # This ensures the motor is stopped even if the daemon's disable logic varies
+        self.set_duty_cycle(0)
+        
         data = {"gpio_pin": self.pwm_pin}
         
         result = self._make_request("/disable", "POST", data)
